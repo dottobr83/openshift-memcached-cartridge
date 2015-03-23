@@ -1,0 +1,72 @@
+#! /bin/sh
+#
+# chkconfig: - 55 45
+# description:	The memcached daemon is a network memory cache service.
+# processname: memcached
+# config: /etc/sysconfig/memcached
+# pidfile: /var/run/memcached/memcached.pid
+
+# Standard LSB functions
+#. /lib/lsb/init-functions
+
+# Source function library.
+. /etc/init.d/functions
+
+MAXCONN=${OPENSHIFT_MEMCACHED_MAXCONN-1024}
+CACHESIZE=${OPENSHIFT_MEMCACHED_CACHESIZE-64}
+
+RETVAL=0
+prog="memcached"
+pidfile=${OPENSHIFT_MEMCACHED_DIR}/var/run/memcached/memcached.pid
+lockfile=${OPENSHIFT_MEMCACHED_DIR}/var/lock/subsys/memcached
+
+start () {
+	echo -n $"Starting $prog: "
+
+	daemon --pidfile ${pidfile} ${OPENSHIFT_MEMCACHED_DIR}/usr/bin/memcached -d -l $OPENSHIFT_MEMCACHED_HOST -U 0 -p $OPENSHIFT_MEMCACHED_PORT -m $CACHESIZE -c $MAXCONN -P ${pidfile} $OPENSHIFT_MEMCACHED_OPTIONS
+	RETVAL=$?
+	echo
+	[ $RETVAL -eq 0 ] && touch ${lockfile}
+}
+
+stop () {
+	echo -n $"Stopping $prog: "
+	killproc -p ${pidfile} ${OPENSHIFT_MEMCACHED_DIR}/usr/bin/memcached
+	RETVAL=$?
+	echo
+	if [ $RETVAL -eq 0 ] ; then
+		rm -f ${lockfile} ${pidfile}
+	fi
+}
+
+restart () {
+        stop
+        start
+}
+
+
+# See how we were called.
+case "$1" in
+  start)
+	start
+	;;
+  stop)
+	stop
+	;;
+  status)
+	status -p ${pidfile} memcached
+	RETVAL=$?
+	;;
+  restart|reload|force-reload)
+	restart
+	;;
+  condrestart|try-restart)
+	[ -f ${lockfile} ] && restart || :
+	;;
+  *)
+	echo $"Usage: $0 {start|stop|status|restart|reload|force-reload|condrestart|try-restart}"
+	RETVAL=2
+        ;;
+esac
+
+exit $RETVAL
